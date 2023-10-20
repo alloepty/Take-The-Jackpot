@@ -5,139 +5,141 @@ using UnityEditor.Rendering;
 using UnityEngine;
 using UnityEngine.UI;
 
-public class Enemy_Detect : MonoBehaviour
-{
+
+enum EnemyDetectEnum {
+    detect,
+    notDetect,
+    wait,
+}
+
+enum EnemyGoingToEnum {
+    up,
+    down,
+}
+
+
+public class Enemy_Detect : MonoBehaviour {
     [SerializeField] float Timer;
     [SerializeField] float DetectTime;
     [SerializeField] float speed;
     [SerializeField] private Transform position1, position2;
-    private bool _switch = false;
-    bool detected=false;
-    public  bool lose = false;
     [SerializeField] Image detect_image;
     [SerializeField] GameObject enemy;
-    float percent;
-  [SerializeField]  float normalSpeed;
-    float zeroSpeed = 0;
-    float EnemyStayTimer = 0;
+    [SerializeField] float normalSpeed;
     [SerializeField] float EnemyStayTimeMax;
+
+    private bool _switch = false;
+    EnemyDetectEnum currentEnemyState = EnemyDetectEnum.notDetect;
+    EnemyGoingToEnum currentEnemyGoingToState = EnemyGoingToEnum.up;
+    public bool lose = false;
+
+    float percent;
+    float currentPosition;
+  
+    float zeroSpeed = 0;
+    float EnemyStayTimer = 0;    
     bool move_pull = true; 
-    private void Update()
-    {
 
-
-
-        if (_switch == false && move_pull)
-        {
-            enemy.transform.position = Vector3.MoveTowards(enemy.transform.position, position1.position, speed * Time.deltaTime);
-            EnemyStay();
-        }
-        else if (_switch == true && move_pull)
-        {
-            enemy.transform.position = Vector3.MoveTowards(enemy.transform.position, position2.position, speed * Time.deltaTime);
-            EnemyStay();
-
-        }
-
-        if (enemy.transform.position== position1.position) {
-            
-            _switch = true;
-            EnemyMove();
-        }
-        else if(enemy.transform.position == position2.position) {
-
-           
-            _switch = false;
-            EnemyMove();
+    private void Update() {
+        float enemySpeed = speed * Time.deltaTime;
+        if (currentEnemyState == EnemyDetectEnum.notDetect) {
+            switch(currentEnemyGoingToState) {
+                case EnemyGoingToEnum.up:
+                    EnemyTransformPosition(enemy.transform.position, position1.position, enemySpeed);
+                    EnemyEndpointChange(enemy.transform.position, position1.position, EnemyGoingToEnum.down);
+                    break;
+                case EnemyGoingToEnum.down:
+                    EnemyTransformPosition(enemy.transform.position, position2.position, enemySpeed);
+                    EnemyEndpointChange(enemy.transform.position, position2.position, EnemyGoingToEnum.up);
+                    break;
+            }
         }
         
         ImageFill1();
-        
-        if (detected)
-        {
-            Detected();
-            
-            DetectUp();
-            
-        }
-        else 
-        {
-            DetectDown();
-            
-        }
-    }
-    private void OnTriggerEnter(Collider other)
-    {
-       
-        if(other.TryGetComponent<PlayerController>(out PlayerController pla))
-        {
-           detected = true;
-            move_pull = false;
-            
-        }
-    }
-    private void OnTriggerExit(Collider other)
-    {
-        if (other.TryGetComponent<PlayerController>(out PlayerController pla))
-        {
-            detected = false;
-           
-        }
 
+        if (currentEnemyState == EnemyDetectEnum.detect) {
+            Detected();
+            DetectUp();
+        }
+        else {
+            DetectDown();
+        }
     }
-    private void DetectUp()
-    {
-        DetectTime += 0.1f;
-       
-        
+
+    private void OnTriggerEnter(Collider other) {
+        if(other.TryGetComponent<PlayerController>(out PlayerController pla)) {
+            currentEnemyState = EnemyDetectEnum.wait;            
+        }
     }
-    private void DetectDown()
-    {
-        
-        if (DetectTime > 0)
-        {
+
+    private void OnTriggerExit(Collider other){
+        if (other.TryGetComponent<PlayerController>(out PlayerController pla)) {
+            currentEnemyState = EnemyDetectEnum.notDetect;
+        }
+    }
+
+    private void DetectUp() {
+        DetectTime += 0.1f;   
+    }
+
+    private void DetectDown() {
+        if (DetectTime > 0){
             DetectTime -= 0.1f;
-            if (DetectTime <= 0)
-            {
+            if (DetectTime <= 0) {
                 DetectTime = 0;
-                move_pull= true;
+                currentEnemyState = EnemyDetectEnum.notDetect;
             }
         }
     }
-    private void Detected()
-    {
-        if(DetectTime >= Timer) 
-{
-          
+
+    private void Detected() {
+        if (DetectTime >= Timer) {
             Debug.Log("Detected");
             UIAdministrator.Menu.LoseMenu.active = true;
             Time.timeScale = 0;
-}
+        }
     }
-    void ImageFill1()
-    {
+
+    void ImageFill1() {
         percent = DetectTime / Timer;
         detect_image.fillAmount = percent;
     }
-   void EnemyStay()
-    {
+
+    void EnemyStay() {
         EnemyStayTimer += 0.1f;
         speed = zeroSpeed;
-        if(EnemyStayTimer >= EnemyStayTimeMax) 
-        {
+        if(EnemyStayTimer >= EnemyStayTimeMax) {
             speed = normalSpeed;
         }
-       
     }
-   void EnemyMove()
-    {
-        if(EnemyStayTimer >= 0)
-        {
+
+    void EnemyMove() {
+        if(EnemyStayTimer >= 0) {
             EnemyStayTimer = 0;
         }
     }
-    private void OnDrawGizmos()
-    {
+
+    private void OnDrawGizmos() {
         Gizmos.DrawLine(position1.position, position2.position);
+    }
+
+    private void EnemyTransformPosition(
+        Vector3 current,
+        Vector3 target,
+        float maxDistanceDelta
+    ) {
+        enemy.transform.position = Vector3.MoveTowards(current, target, maxDistanceDelta);
+        EnemyStay();
+    }
+
+    private void EnemyEndpointChange(
+        Vector3 currentPosition,
+        Vector3 targetPosition,
+        EnemyGoingToEnum goingTo
+    ) {
+        if(currentPosition == targetPosition) {
+            currentEnemyGoingToState = goingTo;
+            EnemyMove();
+        }
     }
 }
